@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Realm of Thrones 2D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1a1a1a; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 10px; left: 10px; color: gold; font-family: 'Arial'; }
+        #shop { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                background: rgba(0,0,0,0.8); color: white; padding: 20px; display: none; }
+        button { background: gold; border: none; padding: 10px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        Coins: <span id="coins">0</span> | 
+        Health: <span id="health">100</span>
+        <button onclick="openShop()">Shop</button>
+    </div>
+    <div id="shop">
+        <h2>SHOP (1000 coins for Dragon!)</h2>
+        <button onclick="buyItem('sword')">Sword (50 coins)</button>
+        <button onclick="buyItem('horse')">Horse (100 coins)</button>
+        <button onclick="buyItem('dragon')">Dragon (1000 coins)</button>
+        <button onclick="closeShop()">Close</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // Game Setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Player
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: 30,
+            speed: 5,
+            isRiding: false,
+            coins: 0,
+            health: 100,
+            items: []
+        };
+
+        // Horse
+        const horse = {
+            x: player.x,
+            y: player.y,
+            size: 40,
+            speedBoost: 3
+        };
+
+        // Dragon
+        const dragon = {
+            x: player.x,
+            y: player.y,
+            size: 60,
+            isActive: false
+        };
+
+        // Enemies
+        let enemies = [];
+        function spawnEnemy() {
+            enemies.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: 25,
+                speed: 2
+            });
+        }
+
+        // Coins
+        let coins = [];
+        function spawnCoin() {
+            coins.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: 15,
+                value: 10
+            });
+        }
+
+        // Game Loop
+        function gameLoop() {
+            // Clear screen
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Player
+            ctx.fillStyle = player.isRiding ? 'brown' : 'red';
+            ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+
+            // Draw Horse (if riding)
+            if (player.isRiding) {
+                ctx.fillStyle = 'saddlebrown';
+                ctx.fillRect(horse.x - horse.size/2, horse.y - horse.size/2, horse.size, horse.size);
+            }
+
+            // Draw Dragon (if bought)
+            if (dragon.isActive) {
+                ctx.fillStyle = 'darkred';
+                ctx.fillRect(dragon.x - dragon.size/2, dragon.y - dragon.size/2, dragon.size, dragon.size);
+            }
+
+            // Draw Enemies
+            ctx.fillStyle = 'blue';
+            enemies.forEach(enemy => {
+                ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+                
+                // Chase Player
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                enemy.x += (dx / dist) * enemy.speed;
+                enemy.y += (dy / dist) * enemy.speed;
+
+                // Collision with Player
+                if (dist < player.size/2 + enemy.size/2) {
+                    player.health -= 10;
+                    document.getElementById('health').textContent = player.health;
+                }
+            });
+
+            // Draw Coins
+            ctx.fillStyle = 'gold';
+            coins.forEach((coin, index) => {
+                ctx.fillRect(coin.x - coin.size/2, coin.y - coin.size/2, coin.size, coin.size);
+                
+                // Collect Coin
+                const dx = player.x - coin.x;
+                const dy = player.y - coin.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < player.size/2 + coin.size/2) {
+                    player.coins += coin.value;
+                    document.getElementById('coins').textContent = player.coins;
+                    coins.splice(index, 1);
+                }
+            });
+
+            // Spawn New Coins/Enemies
+            if (Math.random() < 0.02) spawnCoin();
+            if (Math.random() < 0.01) spawnEnemy();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            const speed = player.isRiding ? player.speed * horse.speedBoost : player.speed;
+            switch(e.key) {
+                case 'ArrowUp': player.y -= speed; break;
+                case 'ArrowDown': player.y += speed; break;
+                case 'ArrowLeft': player.x -= speed; break;
+                case 'ArrowRight': player.x += speed; break;
+                case 'h': player.isRiding = !player.isRiding; break;
+            }
+            horse.x = player.x;
+            horse.y = player.y;
+            dragon.x = player.x;
+            dragon.y = player.y;
+        });
+
+        // Shop Functions
+        function openShop() { document.getElementById('shop').style.display = 'block'; }
+        function closeShop() { document.getElementById('shop').style.display = 'none'; }
+        function buyItem(item) {
+            let cost = 0;
+            if (item === 'sword') cost = 50;
+            if (item === 'horse') cost = 100;
+            if (item === 'dragon') cost = 1000;
+
+            if (player.coins >= cost) {
+                player.coins -= cost;
+                player.items.push(item);
+                document.getElementById('coins').textContent = player.coins;
+                if (item === 'dragon') dragon.isActive = true;
+                alert(`You bought a ${item}!`);
+            } else {
+                alert("Not enough coins!");
+            }
+        }
+
+        // Start Game
+        spawnCoin();
+        spawnEnemy();
+        gameLoop();
+    </script>
+</body>
+</html>
